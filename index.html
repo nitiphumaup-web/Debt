@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบติดตามคดีอาญา</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f8f9fc;
+    --surface: #ffffff;
+    --border: #e5e7eb;
+    --text: #111827;
+    --muted: #6b7280;
+    --primary: #1a56db;
+    --primary-light: #eff6ff;
+    --danger: #ef4444;
+    --danger-light: #fee2e2;
+    --warn: #f59e0b;
+    --warn-light: #fffbeb;
+    --success: #22c55e;
+    --success-light: #f0fdf4;
+    --radius: 10px;
+    --shadow: 0 1px 4px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'IBM Plex Sans Thai', 'Sarabun', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* ─── Header ─── */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--primary);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 18px;
+  }
+  .header-title h1 { font-size: 15px; font-weight: 700; color: var(--text); }
+  .header-title p { font-size: 12px; color: var(--muted); }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .sync-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px; font-weight: 500;
+    border: 1px solid;
+    transition: all 0.3s;
+    cursor: pointer;
+  }
+  .sync-badge.synced { background: var(--success-light); color: #15803d; border-color: #bbf7d0; }
+  .sync-badge.syncing { background: #eff6ff; color: var(--primary); border-color: #bfdbfe; }
+  .sync-badge.error { background: var(--danger-light); color: var(--danger); border-color: #fecaca; }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .sync-badge.syncing .sync-dot { animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .datetime { font-size: 12px; color: var(--muted); }
+  .btn-add {
+    background: var(--primary); color: white;
+    border: none; cursor: pointer;
+    padding: 8px 16px; border-radius: var(--radius);
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+    transition: background 0.2s;
+  }
+  .btn-add:hover { background: #1344b0; }
+
+  /* ─── Main ─── */
+  .main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  /* ─── Alert Banner ─── */
+  .alert-banner {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .alert-banner.visible { display: block; }
+  .alert-banner-title { font-weight: 700; color: #92400e; margin-bottom: 6px; font-size: 13px; }
+  .alert-item { font-size: 13px; color: #78350f; margin: 2px 0; }
+
+  /* ─── Stats ─── */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 20px;
+    box-shadow: var(--shadow);
+  }
+  .stat-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .stat-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .stat-value { font-size: 28px; font-weight: 700; }
+  .stat-card.overdue .stat-value { color: var(--danger); }
+  .stat-card.near .stat-value { color: var(--warn); }
+  .stat-card.ok .stat-value { color: var(--success); }
+
+  /* ─── Toolbar ─── */
+  .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+  .toolbar-left { display: flex; align-items: center; gap: 10px; }
+  .section-title { font-size: 15px; font-weight: 700; }
+  .count-badge {
+    background: var(--primary); color: white;
+    font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 12px;
+  }
+  .filter-tabs { display: flex; gap: 4px; }
+  .filter-tab {
+    padding: 5px 14px; border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface); color: var(--muted);
+    font-family: inherit; font-size: 12px; font-weight: 500;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .filter-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+  .search-box {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 6px 12px;
+  }
+  .search-box input {
+    border: none; outline: none; font-family: inherit;
+    font-size: 13px; background: transparent; width: 180px; color: var(--text);
+  }
+  .search-icon { color: var(--muted); font-size: 14px; }
+
+  /* ─── Table ─── */
+  .table-wrap {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    padding: 11px 16px;
+    text-align: left;
+    font-size: 12px; font-weight: 600; color: var(--muted);
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid #f3f4f6; transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #f9fafb; }
+  td { padding: 12px 16px; font-size: 13px; vertical-align: top; }
+  .td-num { color: var(--muted); font-size: 12px; }
+  .case-name { font-weight: 700; font-size: 14px; }
+  .case-employer { color: var(--muted); font-size: 12px; }
+  .case-type-tag {
+    display: inline-block; margin-top: 4px;
+    font-size: 11px; padding: 1px 7px; border-radius: 10px;
+    background: #eff6ff; color: var(--primary);
+  }
+
+  .deadline-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 600; padding: 3px 10px;
+    border-radius: 12px;
+  }
+  .deadline-badge.overdue { background: var(--danger-light); color: var(--danger); }
+  .deadline-badge.near { background: #fffbeb; color: #92400e; }
+  .deadline-badge.ok { background: var(--success-light); color: #15803d; }
+  .deadline-badge.none { background: #f3f4f6; color: var(--muted); }
+
+  .actions { display: flex; gap: 6px; }
+  .btn-icon {
+    width: 30px; height: 30px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; transition: all 0.15s;
+  }
+  .btn-icon:hover { border-color: var(--primary); background: var(--primary-light); }
+  .btn-icon.delete:hover { border-color: var(--danger); background: var(--danger-light); }
+
+  .empty-state {
+    text-align: center; padding: 60px 20px; color: var(--muted);
+  }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  /* ─── Modal ─── */
+  .overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 200;
+    align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: 14px;
+    width: 100%; max-width: 520px;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    animation: slideUp 0.2s ease;
+  }
+  @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-title { font-size: 16px; font-weight: 700; }
+  .btn-close {
+    width: 28px; height: 28px; border-radius: 6px;
+    border: none; background: #f3f4f6; cursor: pointer;
+    font-size: 16px; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); transition: background 0.15s;
+  }
+  .btn-close:hover { background: var(--border); }
+  .modal-body { padding: 20px 24px; }
+  .modal-footer {
+    display: flex; justify-content: flex-end; gap: 10px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ─── Form ─── */
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .form-group:last-child { margin-bottom: 0; }
+  label { font-size: 12px; font-weight: 600; color: var(--text); }
+  label .req { color: var(--danger); }
+  input, textarea, select {
+    font-family: inherit; font-size: 13px;
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; color: var(--text);
+    background: var(--surface);
+    transition: border 0.15s;
+    width: 100%;
+  }
+  input:focus, textarea:focus, select:focus {
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(26,86,219,0.1);
+  }
+  textarea { resize: vertical; min-height: 72px; }
+
+  .btn-cancel {
+    padding: 8px 18px; border-radius: var(--radius);
+    border: 1px solid var(--border); background: var(--surface);
+    font-family: inherit; font-size: 13px; font-weight: 500;
+    cursor: pointer; color: var(--text);
+    transition: background 0.15s;
+  }
+  .btn-cancel:hover { background: var(--bg); }
+  .btn-save {
+    padding: 8px 20px; border-radius: var(--radius);
+    border: none; background: var(--primary); color: white;
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; gap: 7px;
+    transition: background 0.2s;
+  }
+  .btn-save:hover { background: #1344b0; }
+  .btn-save:disabled { background: #93c5fd; cursor: not-allowed; }
+
+  /* ─── Confirm Dialog ─── */
+  .confirm-modal { max-width: 360px; }
+  .confirm-modal .modal-body { text-align: center; padding: 24px; }
+  .confirm-icon { font-size: 40px; margin-bottom: 12px; }
+  .confirm-msg { font-size: 14px; color: var(--muted); }
+  .btn-danger {
+    padding: 8px 20px; border-radius: var(--radius);
+    border: none; background: var(--danger); color: white;
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .btn-danger:hover { background: #dc2626; }
+
+  /* ─── Config Banner ─── */
+  .config-banner {
+    background: #eff6ff; border: 1px solid #bfdbfe;
+    border-radius: var(--radius); padding: 14px 18px;
+    margin-bottom: 20px;
+    font-size: 13px; color: #1e40af;
+  }
+  .config-banner b { font-weight: 700; }
+  .config-banner code {
+    background: #dbeafe; padding: 1px 6px;
+    border-radius: 4px; font-family: monospace; font-size: 12px;
+  }
+
+  @media (max-width: 640px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .form-row { grid-template-columns: 1fr; }
+    .header { padding: 0 12px; }
+    .main { padding: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo-icon">⚖️</div>
+    <div class="header-title">
+      <h1>ระบบติดตามคดีอาญา</h1>
+      <p>กรมสวัสดิการและคุ้มครองแรงงาน จ.นนทบุรี</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="sync-badge synced" id="syncBadge" onclick="syncData()">
+      <div class="sync-dot"></div>
+      <span id="syncLabel">ซิงค์แล้ว</span>
+    </div>
+    <div class="datetime" id="datetimeDisplay"></div>
+    <button class="btn-add" onclick="openAddModal()">
+      <span>+</span> เพิ่มคดีใหม่
+    </button>
+  </div>
+</header>
+
+<main class="main">
+
+  <!-- Config Banner (shown if SCRIPT_URL not set) -->
+  <div class="config-banner" id="configBanner" style="display:none">
+    ⚙️ <b>ตั้งค่า Google Apps Script URL:</b> แก้ไขตัวแปร <code>SCRIPT_URL</code> ด้านบนของ HTML ให้เป็น URL ที่ได้หลัง Deploy Web App ครับ
+  </div>
+
+  <!-- Alert Banner -->
+  <div class="alert-banner" id="alertBanner">
+    <div class="alert-banner-title">🔴 ใกล้ครบกำหนด — ต้องดำเนินการ:</div>
+    <div id="alertList"></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-label"><span class="stat-dot" style="background:#6b7280"></span>คดีทั้งหมด</div>
+      <div class="stat-value" id="statTotal">0</div>
+    </div>
+    <div class="stat-card overdue">
+      <div class="stat-label"><span class="stat-dot" style="background:var(--danger)"></span>เกินกำหนด</div>
+      <div class="stat-value" id="statOverdue">0</div>
+    </div>
+    <div class="stat-card near">
+      <div class="stat-label"><span class="stat-dot" style="background:var(--warn)"></span>ใกล้ครบกำหนด (≤7 วัน)</div>
+      <div class="stat-value" id="statNear">0</div>
+    </div>
+    <div class="stat-card ok">
+      <div class="stat-label"><span class="stat-dot" style="background:var(--success)"></span>ปกติ</div>
+      <div class="stat-value" id="statOk">0</div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <span class="section-title">รายการคดี</span>
+      <span class="count-badge" id="caseCount">0 คดี</span>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-filter="all" onclick="setFilter('all',this)">ทั้งหมด</button>
+        <button class="filter-tab" data-filter="overdue" onclick="setFilter('overdue',this)">เกินกำหนด</button>
+        <button class="filter-tab" data-filter="near" onclick="setFilter('near',this)">ใกล้ครบ</button>
+        <button class="filter-tab" data-filter="ok" onclick="setFilter('ok',this)">ปกติ</button>
+      </div>
+    </div>
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="ค้นหาชื่อคดี / นายจ้าง..." oninput="renderTable()">
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>ชื่อคดี / ชื่อนายจ้าง</th>
+          <th>สถานะปัจจุบัน</th>
+          <th>NEXT STEPS</th>
+          <th>กำหนดเวลา</th>
+          <th>จัดการ</th>
+        </tr>
+      </thead>
+      <tbody id="caseTableBody">
+        <tr><td colspan="6"><div class="empty-state"><div class="icon">📂</div><p>กำลังโหลดข้อมูล...</p></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- ADD/EDIT MODAL -->
+<div class="overlay" id="formOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">เพิ่มคดีใหม่</span>
+      <button class="btn-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>เลขที่คดี / รหัสอ้างอิง</label>
+          <input type="text" id="f-caseNumber" placeholder="เช่น นบ.001/68">
+        </div>
+        <div class="form-group">
+          <label>ชื่อนายจ้าง / บริษัท <span class="req">*</span></label>
+          <input type="text" id="f-employer" placeholder="ชื่อบริษัทหรือนายจ้าง">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>สถานะปัจจุบัน <span class="req">*</span></label>
+        <textarea id="f-status" placeholder="กรอกสถานะและรายละเอียดคดีปัจจุบัน"></textarea>
+      </div>
+      <div class="form-group">
+        <label>NEXT STEPS <span class="req">*</span></label>
+        <textarea id="f-nextSteps" placeholder="เช่น จัดทำหนังสือเตือนครั้งที่ 2"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>กำหนดเวลา</label>
+          <input type="date" id="f-deadline">
+        </div>
+        <div class="form-group">
+          <label>ประเภทคดี</label>
+          <input type="text" id="f-caseType" placeholder="เช่น กองทุนสงเคราะห์, ค่าชดเชย...">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>หมายเหตุ</label>
+        <textarea id="f-notes" placeholder="บันทึกเพิ่มเติม (ไม่บังคับ)" style="min-height:56px"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn-save" id="btnSave" onclick="saveCase()">
+        💾 บันทึกคดี
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE MODAL -->
+<div class="overlay" id="confirmOverlay">
+  <div class="modal confirm-modal">
+    <div class="modal-body">
+      <div class="confirm-icon">🗑️</div>
+      <h3 style="margin-bottom:8px">ยืนยันการลบคดี</h3>
+      <p class="confirm-msg">คดี "<span id="confirmCaseName"></span>" จะถูกลบถาวร ไม่สามารถกู้คืนได้</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeConfirm()">ยกเลิก</button>
+      <button class="btn-danger" onclick="confirmDelete()">ลบเลย</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// ⚙️ CONFIG — แก้ URL ตรงนี้หลัง Deploy Google Apps Script
+// ============================================================
+const SCRIPT_URL = "YOUR_APPS_SCRIPT_URL_HERE";
+// ตัวอย่าง: "https://script.google.com/macros/s/AKfy.../exec"
+
+// ============================================================
+
+let allCases = [];
+let currentFilter = "all";
+let editingId = null;
+let deleteId = null;
+
+// ─── INIT ───
+window.addEventListener("DOMContentLoaded", () => {
+  updateDatetime();
+  setInterval(updateDatetime, 30000);
+
+  if (SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+    document.getElementById("configBanner").style.display = "block";
+    setSyncState("error", "ยังไม่ตั้งค่า URL");
+    loadLocalFallback();
+  } else {
+    syncData();
+  }
+});
+
+function updateDatetime() {
+  const now = new Date();
+  const opts = { weekday:"short", day:"numeric", month:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" };
+  document.getElementById("datetimeDisplay").textContent =
+    now.toLocaleDateString("th-TH", opts);
+}
+
+// ─── SYNC / LOAD ───
+async function syncData() {
+  setSyncState("syncing", "กำลังซิงค์...");
+  try {
+    const res = await fetch(`${SCRIPT_URL}?action=getAll&t=${Date.now()}`);
+    const data = await res.json();
+    if (data.success) {
+      allCases = data.cases || [];
+      saveLocal(allCases);
+      setSyncState("synced", "ซิงค์แล้ว");
+      renderAll();
+    } else {
+      throw new Error(data.error);
+    }
+  } catch (e) {
+    setSyncState("error", "ซิงค์ไม่ได้");
+    loadLocalFallback();
+  }
+}
+
+function saveLocal(cases) {
+  try { localStorage.setItem("prosecutor_cases", JSON.stringify(cases)); } catch(e){}
+}
+
+function loadLocalFallback() {
+  try {
+    const saved = localStorage.getItem("prosecutor_cases");
+    if (saved) { allCases = JSON.parse(saved); renderAll(); }
+    else { allCases = []; renderAll(); }
+  } catch(e) { allCases = []; renderAll(); }
+}
+
+function setSyncState(state, label) {
+  const badge = document.getElementById("syncBadge");
+  const lbl = document.getElementById("syncLabel");
+  badge.className = "sync-badge " + state;
+  lbl.textContent = label;
+}
+
+// ─── RENDER ───
+function renderAll() {
+  updateStats();
+  renderAlertBanner();
+  renderTable();
+}
+
+function getDeadlineInfo(deadline) {
+  if (!deadline) return { label: "—", cls: "none", days: null };
+  const dl = new Date(deadline); dl.setHours(0,0,0,0);
+  const now = new Date(); now.setHours(0,0,0,0);
+  const diff = Math.round((dl - now) / 86400000);
+  if (diff < 0) return { label: `เกิน ${Math.abs(diff)} วัน`, cls: "overdue", days: diff };
+  if (diff === 0) return { label: "วันนี้!", cls: "overdue", days: 0 };
+  if (diff <= 7) return { label: `อีก ${diff} วัน`, cls: "near", days: diff };
+  return { label: `อีก ${diff} วัน`, cls: "ok", days: diff };
+}
+
+function formatThaiDate(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("th-TH", { day:"numeric", month:"short", year:"numeric" });
+}
+
+function updateStats() {
+  const total = allCases.length;
+  let overdue = 0, near = 0, ok = 0;
+  allCases.forEach(c => {
+    const info = getDeadlineInfo(c.deadline);
+    if (info.cls === "overdue") overdue++;
+    else if (info.cls === "near") near++;
+    else if (info.cls === "ok") ok++;
+  });
+  document.getElementById("statTotal").textContent = total;
+  document.getElementById("statOverdue").textContent = overdue;
+  document.getElementById("statNear").textContent = near;
+  document.getElementById("statOk").textContent = ok;
+}
+
+function renderAlertBanner() {
+  const alerts = allCases.filter(c => {
+    if (!c.deadline) return false;
+    const info = getDeadlineInfo(c.deadline);
+    return info.cls === "overdue" || (info.cls === "near" && info.days <= 3);
+  });
+  const banner = document.getElementById("alertBanner");
+  const list = document.getElementById("alertList");
+  if (alerts.length === 0) { banner.classList.remove("visible"); return; }
+  banner.classList.add("visible");
+  list.innerHTML = alerts.map(c => {
+    const info = getDeadlineInfo(c.deadline);
+    const label = info.cls === "overdue"
+      ? `เกินกำหนด ${Math.abs(info.days)} วัน`
+      : `อีก ${info.days} วัน`;
+    return `<div class="alert-item">• ${c.caseNumber || "(ไม่มีเลขคดี)"} — ${c.employer || ""} &nbsp;[${formatThaiDate(c.deadline)} · ${label}]</div>`;
+  }).join("");
+}
+
+function getFilteredCases() {
+  const search = document.getElementById("searchInput").value.toLowerCase();
+  return allCases.filter(c => {
+    const info = getDeadlineInfo(c.deadline);
+    const matchFilter =
+      currentFilter === "all" ||
+      (currentFilter === "overdue" && info.cls === "overdue") ||
+      (currentFilter === "near" && info.cls === "near") ||
+      (currentFilter === "ok" && info.cls === "ok");
+    const matchSearch = !search ||
+      (c.caseNumber||"").toLowerCase().includes(search) ||
+      (c.employer||"").toLowerCase().includes(search) ||
+      (c.status||"").toLowerCase().includes(search);
+    return matchFilter && matchSearch;
+  });
+}
+
+function renderTable() {
+  const filtered = getFilteredCases();
+  document.getElementById("caseCount").textContent = `${filtered.length} คดี`;
+  const tbody = document.getElementById("caseTableBody");
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">📂</div><p>ไม่พบคดีที่ตรงกัน</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map((c, i) => {
+    const info = getDeadlineInfo(c.deadline);
+    const deadlineHtml = c.deadline
+      ? `<div class="deadline-badge ${info.cls}">
+           <span>${info.cls === "overdue" ? "🔴" : info.cls === "near" ? "🟡" : "🟢"}</span>
+           ${formatThaiDate(c.deadline)}
+         </div>
+         <div style="font-size:11px;color:var(--muted);margin-top:3px">${info.label}</div>`
+      : `<span class="deadline-badge none">ไม่ระบุ</span>`;
+
+    return `<tr>
+      <td class="td-num">${i + 1}</td>
+      <td>
+        <div class="case-name">${escHtml(c.caseNumber || "(ไม่มีเลขคดี)")}</div>
+        <div class="case-employer">· ${escHtml(c.employer || "")}</div>
+        <span class="case-type-tag">${escHtml(c.caseType || "")}</span>
+      </td>
+      <td>${escHtml(c.status || "—")}</td>
+      <td>${escHtml(c.nextSteps || "—")}</td>
+      <td>${deadlineHtml}</td>
+      <td>
+        <div class="actions">
+          <button class="btn-icon" onclick="openEditModal('${c.id}')" title="แก้ไข">✏️</button>
+          <button class="btn-icon delete" onclick="openDeleteConfirm('${c.id}', '${escHtml(c.caseNumber || c.employer || "คดีนี้")}')" title="ลบ">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll(".filter-tab").forEach(t => t.classList.remove("active"));
+  el.classList.add("active");
+  renderTable();
+}
+
+// ─── MODAL OPEN/CLOSE ───
+function openAddModal() {
+  editingId = null;
+  document.getElementById("modalTitle").textContent = "เพิ่มคดีใหม่";
+  clearForm();
+  document.getElementById("formOverlay").classList.add("open");
+}
+
+function openEditModal(id) {
+  const c = allCases.find(x => x.id == id);
+  if (!c) return;
+  editingId = id;
+  document.getElementById("modalTitle").textContent = "แก้ไขคดี";
+  document.getElementById("f-caseNumber").value = c.caseNumber || "";
+  document.getElementById("f-employer").value = c.employer || "";
+  document.getElementById("f-status").value = c.status || "";
+  document.getElementById("f-nextSteps").value = c.nextSteps || "";
+  document.getElementById("f-deadline").value = c.deadline || "";
+  document.getElementById("f-caseType").value = c.caseType || "กองทุนสงเคราะห์";
+  document.getElementById("f-notes").value = c.notes || "";
+  document.getElementById("formOverlay").classList.add("open");
+}
+
+function closeModal() {
+  document.getElementById("formOverlay").classList.remove("open");
+  editingId = null;
+}
+
+function clearForm() {
+  ["f-caseNumber","f-employer","f-status","f-nextSteps","f-deadline","f-notes","f-caseType"].forEach(id => {
+    document.getElementById(id).value = "";
+  });
+}
+
+// ─── SAVE ───
+async function saveCase() {
+  const employer = document.getElementById("f-employer").value.trim();
+  const status = document.getElementById("f-status").value.trim();
+  const nextSteps = document.getElementById("f-nextSteps").value.trim();
+  if (!employer || !status || !nextSteps) {
+    alert("กรุณากรอก ชื่อนายจ้าง, สถานะปัจจุบัน และ NEXT STEPS");
+    return;
+  }
+
+  const params = {
+    caseNumber: document.getElementById("f-caseNumber").value.trim(),
+    employer,
+    status,
+    nextSteps,
+    deadline: document.getElementById("f-deadline").value,
+    caseType: document.getElementById("f-caseType").value,
+    notes: document.getElementById("f-notes").value.trim(),
+  };
+
+  const btn = document.getElementById("btnSave");
+  btn.disabled = true;
+  btn.textContent = "⏳ กำลังบันทึก...";
+
+  try {
+    if (SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+      // Local-only mode
+      if (editingId) {
+        const idx = allCases.findIndex(c => c.id == editingId);
+        if (idx >= 0) Object.assign(allCases[idx], params);
+      } else {
+        allCases.push({ id: Date.now().toString(), ...params, createdAt: new Date().toISOString() });
+      }
+      saveLocal(allCases);
+      closeModal();
+      renderAll();
+    } else {
+      const action = editingId ? "update" : "add";
+      const qp = new URLSearchParams({ action, ...(editingId ? { id: editingId } : {}), ...params });
+      const res = await fetch(`${SCRIPT_URL}?${qp}`);
+      const data = await res.json();
+      if (data.success) {
+        closeModal();
+        await syncData();
+      } else {
+        alert("บันทึกไม่สำเร็จ: " + data.error);
+      }
+    }
+  } catch (e) {
+    alert("เกิดข้อผิดพลาด: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = "💾 บันทึกคดี";
+  }
+}
+
+// ─── DELETE ───
+function openDeleteConfirm(id, name) {
+  deleteId = id;
+  document.getElementById("confirmCaseName").textContent = name;
+  document.getElementById("confirmOverlay").classList.add("open");
+}
+
+function closeConfirm() {
+  document.getElementById("confirmOverlay").classList.remove("open");
+  deleteId = null;
+}
+
+async function confirmDelete() {
+  if (!deleteId) return;
+  try {
+    if (SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+      allCases = allCases.filter(c => c.id != deleteId);
+      saveLocal(allCases);
+      closeConfirm();
+      renderAll();
+    } else {
+      const res = await fetch(`${SCRIPT_URL}?action=delete&id=${deleteId}`);
+      const data = await res.json();
+      if (data.success) {
+        closeConfirm();
+        await syncData();
+      } else {
+        alert("ลบไม่สำเร็จ: " + data.error);
+      }
+    }
+  } catch(e) {
+    alert("เกิดข้อผิดพลาด: " + e.message);
+  }
+}
+
+// ─── Keyboard ───
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeModal(); closeConfirm(); }
+});
+</script>
+</body>
+</html>
